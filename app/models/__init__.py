@@ -1,11 +1,8 @@
-"""SQLAlchemy ORM models.
-
-Models added in subsequent sessions:
-  - User      (Sesión 2: reused JWT auth pattern)
-  - Document  (Sesión 2: uploaded file metadata, per-user)
-  - Chunk     (Sesión 3: text chunk + Vector embedding for similarity search)
+"""Re-export every model class so ``Base.metadata`` is fully populated by the
+time Alembic's autogenerate or ``create_all`` inspect it.
 """
 
 from app.models.base import Base, TimestampMixin
+from app.models.user import User
 
-__all__ = ["Base", "TimestampMixin"]
+__all__ = ["Base", "TimestampMixin", "User"]

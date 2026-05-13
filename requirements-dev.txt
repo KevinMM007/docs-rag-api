@@ -5,3 +5,8 @@ pytest-asyncio==0.25.0
 pytest-cov==6.0.0
 httpx==0.28.1
 ruff==0.8.4
+
+# testcontainers spins up a real Postgres+pgvector container per test session
+# so integration tests exercise the actual Vector column path. A SQLite fallback
+# would force mocking pgvector and hide bugs that only show up in production.
+testcontainers[postgres]==4.9.0
