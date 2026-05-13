@@ -1,0 +1,26 @@
+services:
+  db:
+    # pgvector's official image - Postgres 16 with the pgvector extension
+    # pre-installed. We still have to `CREATE EXTENSION vector` once per
+    # database; that lives in the first Alembic migration.
+    image: pgvector/pgvector:pg16
+    container_name: docs-rag-db
+    environment:
+      POSTGRES_USER: docs_rag
+      POSTGRES_PASSWORD: docs_rag
+      POSTGRES_DB: docs_rag
+    ports:
+      # Host port 5434 to coexist peacefully with:
+      #   - a native Postgres install on 5432 (common on Windows)
+      #   - the expense-tracker-api Postgres on 5433
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docs_rag -d docs_rag"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

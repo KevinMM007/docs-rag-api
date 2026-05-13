@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Force LF for files executed inside Linux containers / CI
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf

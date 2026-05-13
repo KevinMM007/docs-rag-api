@@ -1,0 +1,25 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+
+# pgvector adapter: registers the Vector column type with SQLAlchemy and
+# wires psycopg up to deserialize vector columns into numpy arrays / lists.
+pgvector==0.3.6
+
+pydantic[email]==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-multipart==0.0.20
+
+# Google Gemini SDK - used for both embeddings (text-embedding-004) and
+# generation (gemini-2.5-flash). One SDK, one API key, one rate-limit pool.
+google-genai==1.5.0
+
+# PDF parsing. PyMuPDF (a.k.a. fitz) handles tables, columns and embedded
+# fonts noticeably better than pypdf, which matters for messy real-world PDFs.
+pymupdf==1.25.1
