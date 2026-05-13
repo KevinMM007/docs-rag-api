@@ -65,7 +65,11 @@ def db(db_engine: Engine) -> Generator[Session]:
     # Per-test cleanup: the app commits inside register/login, so a
     # transactional rollback approach would fight FastAPI's own commits.
     # TRUNCATE is fast and resets ``id`` sequences for predictable assertions.
-    session.execute(text("TRUNCATE TABLE users RESTART IDENTITY CASCADE"))
+    # CASCADE on the users truncate would clear documents+chunks via FK, but
+    # being explicit makes the per-test fixture independent of FK ordering.
+    session.execute(
+        text("TRUNCATE TABLE chunks, documents, users RESTART IDENTITY CASCADE")
+    )
     session.commit()
     try:
         yield session

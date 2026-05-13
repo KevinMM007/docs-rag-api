@@ -1,3 +1,3 @@
-from app.crud import user
+from app.crud import document, user
 
-__all__ = ["user"]
+__all__ = ["document", "user"]
