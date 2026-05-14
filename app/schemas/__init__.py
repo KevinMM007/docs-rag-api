@@ -1,8 +1,10 @@
+from app.schemas.chat import ChatQuery
 from app.schemas.document import ChunkSearchResult, DocumentRead, SearchQuery
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserRead
 
 __all__ = [
+    "ChatQuery",
     "ChunkSearchResult",
     "DocumentRead",
     "SearchQuery",

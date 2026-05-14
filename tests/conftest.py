@@ -122,3 +122,31 @@ def stub_gemini_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
         return [_vector_from_text(t) for t in texts]
 
     monkeypatch.setattr(emb, "_embed", fake_embed)
+
+
+@pytest.fixture(autouse=True)
+def stub_gemini_chat(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace the chat-streaming SDK call with a deterministic generator.
+
+    The fake echoes a short canned answer split into a few tokens so SSE
+    tests can assert frame-by-frame ordering without flaky timing or burning
+    the Gemini free-tier quota.
+
+    Tests that want to exercise error paths can monkey-patch
+    ``llm.stream_chat`` from inside the test body.
+    """
+    from collections.abc import Iterator
+
+    from app.services import llm as llm_mod
+
+    def fake_stream_chat(
+        prompt: str,
+        *,
+        system_instruction: str | None = None,
+        temperature: float = 0.2,
+    ) -> Iterator[str]:
+        # A handful of fragments mimics Gemini's typical multi-token chunking
+        # so generator-based tests exercise the loop multiple times.
+        yield from ("This is ", "a stubbed ", "answer.")
+
+    monkeypatch.setattr(llm_mod, "stream_chat", fake_stream_chat)
