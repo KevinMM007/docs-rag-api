@@ -10,15 +10,32 @@ ignore = ["B008", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/conftest.py" = ["N806"]
+# These tests capture private functions at module import (before the autouse
+# fixture rebinds them) so they can exercise the real bodies. Renaming the
+# captured handles in UPPER_CASE signals "this is a constant pointer to the
+# original" and triggers N812 - intentionally suppressed.
+"tests/test_llm.py" = ["N812"]
+"tests/test_embeddings.py" = ["N812"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+# Coverage is enforced via --cov-fail-under so CI fails before a PR can
+# drop the suite below the floor. 90 leaves slack for organic growth without
+# being so generous it hides obvious regressions.
+addopts = "-v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=90"
 asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["app"]
 omit = ["app/__init__.py", "*/tests/*"]
+# Branch coverage catches half-tested if/else where line coverage would
+# happily report 100% from running just one side.
+branch = true
 
 [tool.coverage.report]
-exclude_lines = ["pragma: no cover", "if __name__ == .__main__.:"]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    # ``raise NotImplementedError`` and the like are usually placeholders.
+    "raise NotImplementedError",
+]

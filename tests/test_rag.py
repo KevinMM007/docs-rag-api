@@ -181,6 +181,25 @@ def test_chat_rejects_empty_query(client: TestClient) -> None:
     assert response.status_code == 422
 
 
+def test_chat_returns_503_when_embedding_fails(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An embedding outage must produce a clean 503 with a JSON body, not a
+    half-opened SSE stream the browser would have to special-case."""
+    from app.services import embeddings
+
+    def boom(_text):
+        raise embeddings.EmbeddingError("query embedding failed")
+
+    monkeypatch.setattr(embeddings, "embed_query", boom)
+
+    headers = _register_and_login(client)
+    response = client.post("/api/v1/chat", headers=headers, json={"query": "hi"})
+    assert response.status_code == 503
+    assert "Embedding service unavailable" in response.json()["detail"]
+
+
 def test_chat_top_k_override_is_passed_through(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

@@ -5,10 +5,12 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL_+_pgvector-16-4169E1.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Gemini](https://img.shields.io/badge/Google_Gemini-2.5_Flash-4285F4.svg?logo=google&logoColor=white)](https://ai.google.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen.svg)](#-tests)
+[![Tests](https://img.shields.io/badge/tests-72_passing-brightgreen.svg)](#-tests)
 
 > Upload your PDFs and Markdown, then ask questions in natural language. The server chunks the documents, embeds each chunk with Google Gemini, stores the vectors in pgvector, and answers questions by retrieving the most relevant chunks and feeding them to Gemini 2.5 Flash as RAG context — with streaming responses and citations.
 
-> Status: 🚧 in active development (Sesión 1 / 6).
+> Status: 🚧 in active development (Sesión 5 / 6).
 
 ---
 
@@ -77,8 +79,19 @@ Open <http://localhost:8000/docs> for the live Swagger UI.
 ## 🧪 Tests
 
 ```bash
-pytest --cov=app --cov-report=term-missing
+pytest
 ```
+
+The test suite runs 72 integration + unit tests against a real Postgres + pgvector container (spun up via testcontainers per session) and a deterministic in-memory stub of the Gemini SDK, so CI never burns the free-tier quota. Coverage is enforced at **≥ 90 %** via `--cov-fail-under` — the suite currently sits at **96 %** with branch coverage enabled.
+
+| Layer | What is exercised |
+|---|---|
+| Auth | register / login / `/me`, JWT expiry, non-integer subject, deleted user |
+| Documents | PDF + Markdown upload, MIME inference from extension, 415 / 413 / 422 / 503 error paths, per-user isolation, FK cascade on delete |
+| Embeddings | retry exhaustion + recovery, dimension validation, L2 normalisation, API-key guard |
+| Retrieval | similarity ranking (identical text → distance 0), per-user filtering, `top_k` cap |
+| Chat (SSE) | sources event first, token stream, `done` vs mid-stream `error`, 503 before stream opens |
+| Config | `postgres://` → `postgresql+psycopg://` coercion, CORS CSV parsing |
 
 ---
 

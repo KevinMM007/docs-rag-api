@@ -126,27 +126,30 @@ def stub_gemini_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def stub_gemini_chat(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Replace the chat-streaming SDK call with a deterministic generator.
+    """Replace the chat SDK at the *client boundary* (``llm._client``) rather
+    than at the public ``stream_chat`` entry point. Two benefits:
 
-    The fake echoes a short canned answer split into a few tokens so SSE
-    tests can assert frame-by-frame ordering without flaky timing or burning
-    the Gemini free-tier quota.
-
-    Tests that want to exercise error paths can monkey-patch
-    ``llm.stream_chat`` from inside the test body.
+    * SSE integration tests still get a deterministic canned answer.
+    * Unit tests in ``test_llm.py`` can override ``_client`` themselves
+      (their override wins) and exercise the real ``stream_chat`` body -
+      its event loop, ``getattr(event, "text", ...)`` filtering, and
+      exception-to-LLMError mapping.
     """
-    from collections.abc import Iterator
+    from types import SimpleNamespace
 
     from app.services import llm as llm_mod
 
-    def fake_stream_chat(
-        prompt: str,
-        *,
-        system_instruction: str | None = None,
-        temperature: float = 0.2,
-    ) -> Iterator[str]:
-        # A handful of fragments mimics Gemini's typical multi-token chunking
-        # so generator-based tests exercise the loop multiple times.
-        yield from ("This is ", "a stubbed ", "answer.")
+    class _FakeStream:
+        def __iter__(self):
+            for piece in ("This is ", "a stubbed ", "answer."):
+                yield SimpleNamespace(text=piece)
 
-    monkeypatch.setattr(llm_mod, "stream_chat", fake_stream_chat)
+    class _FakeModels:
+        def generate_content_stream(self, **_kw):
+            return _FakeStream()
+
+    monkeypatch.setattr(
+        llm_mod,
+        "_client",
+        lambda: SimpleNamespace(models=_FakeModels()),
+    )

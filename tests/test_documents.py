@@ -177,3 +177,82 @@ def test_delete_returns_404_for_unknown_document(client: TestClient) -> None:
     headers = _register_and_login(client)
     response = client.delete("/api/v1/documents/99999", headers=headers)
     assert response.status_code == 404
+
+
+def test_upload_returns_503_when_embedding_service_fails(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """If Gemini is down the upload must bail before persisting any chunks;
+    a half-indexed document would silently misrank in similarity search."""
+    from app.services import embeddings
+
+    def boom(_texts):
+        raise embeddings.EmbeddingError("simulated downstream failure")
+
+    monkeypatch.setattr(embeddings, "embed_documents", boom)
+
+    headers = _register_and_login(client)
+    response = client.post(
+        "/api/v1/documents/upload",
+        headers=headers,
+        files={"file": ("notes.md", b"# Title\n\nReal content for embedding.", "text/markdown")},
+    )
+    assert response.status_code == 503
+    assert "Embedding service unavailable" in response.json()["detail"]
+
+
+def test_upload_rejects_empty_pdf_with_no_text(client: TestClient) -> None:
+    """A born-digital PDF with zero text pages is rejected as 422 - the same
+    error path scanned PDFs hit, so OCR-needed docs surface clearly."""
+    blank = pymupdf.open()
+    blank.new_page()  # empty page, no text
+    buf = io.BytesIO()
+    blank.save(buf)
+    blank.close()
+
+    headers = _register_and_login(client)
+    response = client.post(
+        "/api/v1/documents/upload",
+        headers=headers,
+        files={"file": ("blank.pdf", buf.getvalue(), "application/pdf")},
+    )
+    assert response.status_code == 422
+    assert "no extractable text" in response.json()["detail"]
+
+
+def test_upload_infers_pdf_from_extension_when_mime_is_generic(
+    client: TestClient,
+) -> None:
+    """Browsers occasionally send application/octet-stream for drag-drop;
+    the endpoint must still accept the file based on its extension."""
+    pdf_bytes = _make_pdf_bytes()
+    headers = _register_and_login(client)
+    response = client.post(
+        "/api/v1/documents/upload",
+        headers=headers,
+        files={"file": ("paper.pdf", pdf_bytes, "application/octet-stream")},
+    )
+    assert response.status_code == 201
+    assert response.json()["content_type"] == "application/pdf"
+
+
+def test_search_returns_503_when_embedding_service_fails(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from app.services import embeddings
+
+    headers = _register_and_login(client)
+
+    def boom(_text):
+        raise embeddings.EmbeddingError("query embedding failed")
+
+    monkeypatch.setattr(embeddings, "embed_query", boom)
+
+    response = client.post(
+        "/api/v1/documents/search",
+        headers=headers,
+        json={"query": "anything"},
+    )
+    assert response.status_code == 503

@@ -91,3 +91,31 @@ def test_me_with_garbage_token_returns_401(client: TestClient) -> None:
         headers={"Authorization": "Bearer not-a-real-jwt"},
     )
     assert response.status_code == 401
+
+
+def test_me_with_non_integer_subject_returns_401(client: TestClient) -> None:
+    """A token whose ``sub`` claim isn't a valid user id (e.g. an email or a
+    UUID from a different schema) must be rejected rather than blow up with
+    a 500 from ``int()``.
+    """
+    from app.core.security import create_access_token
+
+    token = create_access_token(subject="not-a-number")
+    response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
+
+
+def test_me_with_unknown_user_id_returns_401(client: TestClient) -> None:
+    """Token validates structurally but points at a user that was deleted (or
+    never existed in this DB) - the deps layer must surface that as 401."""
+    from app.core.security import create_access_token
+
+    token = create_access_token(subject="99999")
+    response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401

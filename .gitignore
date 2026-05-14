@@ -47,5 +47,8 @@ uploads/
 *.sqlite3
 *.db
 
+# Temporary JSON payloads used for ad-hoc curl/Invoke-WebRequest testing.
+body.json
+
 # Hugging Face / sentence-transformers caches (in case we add local models later)
 .cache/
