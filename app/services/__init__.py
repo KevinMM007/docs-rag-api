@@ -1,11 +1,10 @@
 """Service layer for RAG building blocks.
 
 Modules added in subsequent sessions:
-  - embeddings.py  (Sesión 3: Gemini text-embedding-004 wrapper)
-  - llm.py         (Sesión 4: Gemini chat wrapper with streaming)
+  - llm.py         (Sesión 4: Gemini chat wrapper with streaming SSE)
   - rag.py         (Sesión 4: orchestrates retrieval + prompt + generation)
 """
 
-from app.services import chunking, parsers
+from app.services import chunking, embeddings, parsers, retrieval
 
-__all__ = ["chunking", "parsers"]
+__all__ = ["chunking", "embeddings", "parsers", "retrieval"]

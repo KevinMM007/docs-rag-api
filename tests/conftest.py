@@ -91,3 +91,34 @@ def client(db: Session) -> Generator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def stub_gemini_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace the Gemini SDK call site with a deterministic stand-in for
+    every test. Two motivations:
+
+    * CI never burns the free-tier rate limit and tests stay offline-safe.
+    * Identical input text produces identical vectors, so similarity tests
+      can assert exact ordering (a query equal to a chunk gets distance 0).
+
+    Tests that want to exercise the wrapper itself (retry, error handling)
+    can re-patch ``embeddings._embed`` from inside the test; pytest's
+    monkeypatch composes correctly.
+    """
+    import hashlib
+    import math
+
+    from app.services import embeddings as emb
+
+    def _vector_from_text(text: str) -> list[float]:
+        digest = hashlib.sha256(text.strip().lower().encode("utf-8")).digest()
+        raw = list(digest) * (emb.EMBEDDING_DIM // len(digest) + 1)
+        vec = [b / 255.0 for b in raw[: emb.EMBEDDING_DIM]]
+        norm = math.sqrt(sum(x * x for x in vec))
+        return [x / norm for x in vec] if norm > 0 else vec
+
+    def fake_embed(texts: list[str], *, task_type: str) -> list[list[float]]:
+        return [_vector_from_text(t) for t in texts]
+
+    monkeypatch.setattr(emb, "_embed", fake_embed)

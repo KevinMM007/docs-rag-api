@@ -14,7 +14,21 @@ def create_with_chunks(
     content_type: str,
     size_bytes: int,
     chunks: list[str],
+    embeddings: list[list[float]] | None = None,
 ) -> Document:
+    """Persist a document and its chunks (with optional embeddings) atomically.
+
+    ``embeddings`` must be either ``None`` (chunks stored without vectors -
+    useful for debug paths or migrations) or a list of the same length as
+    ``chunks``. The caller is responsible for embedding generation; this CRUD
+    layer stays pure SQL.
+    """
+    if embeddings is not None and len(embeddings) != len(chunks):
+        raise ValueError(
+            f"embeddings length ({len(embeddings)}) does not match chunks "
+            f"length ({len(chunks)})"
+        )
+
     doc = Document(
         user_id=user_id,
         filename=filename,
@@ -26,7 +40,15 @@ def create_with_chunks(
     db.flush()  # populate doc.id without committing
 
     for idx, content in enumerate(chunks):
-        db.add(Chunk(document_id=doc.id, chunk_index=idx, content=content))
+        emb = embeddings[idx] if embeddings is not None else None
+        db.add(
+            Chunk(
+                document_id=doc.id,
+                chunk_index=idx,
+                content=content,
+                embedding=emb,
+            )
+        )
 
     db.commit()
     db.refresh(doc)

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.config import get_settings
 from app.crud import document as crud_doc
-from app.schemas.document import DocumentRead
-from app.services import chunking, parsers
+from app.schemas.document import ChunkSearchResult, DocumentRead, SearchQuery
+from app.services import chunking, embeddings, parsers, retrieval
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -86,6 +87,16 @@ async def upload_document(
             detail="Document yielded no chunks",
         )
 
+    # Embed before persisting so a failed Gemini call doesn't leave us with
+    # half-indexed documents that would silently misrank in similarity search.
+    try:
+        chunk_vectors = embeddings.embed_documents(chunks)
+    except embeddings.EmbeddingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Embedding service unavailable: {exc}",
+        ) from exc
+
     # Normalise the stored MIME type so /list responses don't show
     # "application/octet-stream" for an obvious .md upload.
     stored_content_type = "application/pdf" if kind == "pdf" else "text/markdown"
@@ -97,6 +108,7 @@ async def upload_document(
         content_type=stored_content_type,
         size_bytes=len(content),
         chunks=chunks,
+        embeddings=chunk_vectors,
     )
     return DocumentRead.model_validate(doc)
 
@@ -105,6 +117,55 @@ async def upload_document(
 def list_documents(db: DbSession, current_user: CurrentUser) -> list[DocumentRead]:
     docs = crud_doc.list_for_user(db, current_user.id)
     return [DocumentRead.model_validate(d) for d in docs]
+
+
+@router.post("/search", response_model=list[ChunkSearchResult])
+def search_chunks(
+    payload: SearchQuery,
+    db: DbSession,
+    current_user: CurrentUser,
+    top_k: int = Query(
+        default=0,
+        ge=0,
+        le=50,
+        description="Override the configured retrieval_top_k. 0 = use config default.",
+    ),
+) -> list[ChunkSearchResult]:
+    """Semantic search across the caller's own document chunks.
+
+    Returns chunks ranked by cosine distance to the query. Hits from other
+    users' documents are filtered out at the SQL level via the documents-users
+    join, so a leak would require a deliberate model change rather than a
+    forgotten ``.where()``.
+    """
+    settings = get_settings()
+    k = top_k or settings.retrieval_top_k
+
+    try:
+        query_vec = embeddings.embed_query(payload.query)
+    except embeddings.EmbeddingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Embedding service unavailable: {exc}",
+        ) from exc
+
+    hits = retrieval.search_similar_chunks(
+        db,
+        user_id=current_user.id,
+        query_embedding=query_vec,
+        top_k=k,
+    )
+    return [
+        ChunkSearchResult(
+            chunk_id=h.chunk_id,
+            document_id=h.document_id,
+            document_filename=h.document_filename,
+            chunk_index=h.chunk_index,
+            content=h.content,
+            distance=h.distance,
+        )
+        for h in hits
+    ]
 
 
 @router.get("/{doc_id}", response_model=DocumentRead)

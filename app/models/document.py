@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+# Gemini's text-embedding-004 returns 768-dimensional vectors. Hard-coding it
+# here keeps the schema and the embedding service in sync; if we ever swap
+# models we'd write a migration to ALTER the dimension explicitly.
+EMBEDDING_DIM = 768
 
 
 class Document(Base, TimestampMixin):
@@ -37,8 +43,11 @@ class Chunk(Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # The pgvector embedding column lands in the 0003 migration (Sesión 3).
-    # Splitting it from this migration keeps chunks usable for plain text-search
-    # in case we ever need to debug the pipeline without embeddings.
+    # Nullable so a future debug path can store chunks without embeddings
+    # (e.g. before a re-embedding job). The HNSW index handles NULL rows by
+    # simply skipping them.
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIM), nullable=True
+    )
 
     document: Mapped[Document] = relationship("Document", back_populates="chunks")
