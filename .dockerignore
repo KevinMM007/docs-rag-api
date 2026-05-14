@@ -1,0 +1,63 @@
+# Keep the build context lean so ``docker build`` doesn't ship the whole
+# venv, the test suite, or local secrets to the daemon.
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Environment + secrets
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artefacts
+tests/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.ruff_cache/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Local data + scratch
+data/
+uploads/
+*.sqlite3
+*.db
+body.json
+
+# Git metadata - unneeded inside the image
+.git/
+.gitignore
+.gitattributes
+
+# CI + docs - not needed at runtime
+.github/
+README.md
+LICENSE
+docker-compose.yml
+render.yaml
+pyproject.toml
+requirements-dev.txt
