@@ -8,6 +8,7 @@ should not blow up a user's upload.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from typing import Final
 
@@ -18,6 +19,10 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Must match the ``vector(N)`` column dim in migration 0003.
+# gemini-embedding-001 returns 3072-dim vectors by default but supports
+# Matryoshka-reduced output dimensions; 768 keeps our schema slim and the
+# similarity quality remains strong at that size.
 EMBEDDING_DIM: Final[int] = 768
 
 # Gemini's documented retrieval task types. Document and query vectors live
@@ -38,15 +43,27 @@ def _client() -> genai.Client:
     return genai.Client(api_key=settings.gemini_api_key)
 
 
+def _l2_normalize(vec: list[float]) -> list[float]:
+    """Unit-normalise a vector. Required when using Matryoshka-reduced
+    embeddings - Gemini does not normalise the truncated output, and
+    pgvector's cosine distance gives more stable rankings on unit vectors.
+    """
+    norm = math.sqrt(sum(x * x for x in vec))
+    return [x / norm for x in vec] if norm > 0 else vec
+
+
 def _embed(texts: list[str], *, task_type: str) -> list[list[float]]:
     settings = get_settings()
-    config = genai_types.EmbedContentConfig(task_type=task_type)
+    config = genai_types.EmbedContentConfig(
+        task_type=task_type,
+        output_dimensionality=EMBEDDING_DIM,
+    )
     result = _client().models.embed_content(
         model=settings.gemini_embedding_model,
         contents=texts,
         config=config,
     )
-    vectors = [list(e.values) for e in result.embeddings]
+    vectors = [_l2_normalize(list(e.values)) for e in result.embeddings]
     if any(len(v) != EMBEDDING_DIM for v in vectors):
         raise EmbeddingError(
             f"Gemini returned an embedding with the wrong dimension; "

@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # one place to rotate. Get a free one at https://aistudio.google.com/apikey.
     gemini_api_key: str = "change-me"
     gemini_chat_model: str = "gemini-2.5-flash"
-    gemini_embedding_model: str = "text-embedding-004"
+    gemini_embedding_model: str = "gemini-embedding-001"
 
     # ---- RAG ----
     # Chunk sizes are measured in *tokens* (approximated by Gemini's tokenizer).
